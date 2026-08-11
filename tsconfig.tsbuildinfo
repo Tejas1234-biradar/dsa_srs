@@ -1,0 +1,1 @@
+{"root":["./src/renderer/App.tsx","./src/renderer/env.d.ts","./src/renderer/ipc.ts","./src/renderer/main.tsx","./src/renderer/components/Layout.tsx","./src/renderer/screens/AddProblem.tsx","./src/renderer/screens/Browse.tsx","./src/renderer/screens/Settings.tsx","./src/renderer/screens/Today.tsx","./src/shared/types.ts"],"version":"5.9.3"}

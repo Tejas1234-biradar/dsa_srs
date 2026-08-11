@@ -1,0 +1,10 @@
+node_modules/
+dist/
+release/
+*.db
+*.db-wal
+*.db-shm
+dsa_srs_dev.db
+.env
+.DS_Store
+Thumbs.db
