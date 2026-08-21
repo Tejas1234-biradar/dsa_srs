@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
-import type { TodayItem, TodayNewPick, TodayReview, Grade } from '@shared/types'
-import { getTodayQueue, gradeReview, logNewPickResult, refreshLeetCode } from '../ipc'
+import type { ActivityStats, TodayItem, TodayNewPick, TodayReview, Grade } from '@shared/types'
+import { getActivityStats, getTodayQueue, gradeReview, logNewPickResult, refreshLeetCode } from '../ipc'
+import { Heatmap } from './Stats'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -263,6 +264,7 @@ function ReviewCard({ item, onDone }: ReviewCardProps) {
 
 export default function Today() {
   const [queue, setQueue] = useState<TodayItem[]>([])
+  const [activity, setActivity] = useState<ActivityStats | null>(null)
   const [doneItems, setDoneItems] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -284,6 +286,12 @@ export default function Today() {
     loadQueue()
   }, [loadQueue])
 
+  useEffect(() => {
+    getActivityStats().then(res => {
+      if (res.success && res.data) setActivity(res.data)
+    })
+  }, [])
+
   function markDone(key: string) {
     setDoneItems(prev => new Set([...prev, key]))
   }
@@ -300,6 +308,20 @@ export default function Today() {
   const totalDone = doneItems.size
   const totalItems = queue.length
   const allDone = totalItems > 0 && visibleQueue.length === 0
+  const activityPanel = activity && (
+    <section className="today-activity">
+      <div className="section-header">
+        <span className="section-title">Study activity</span>
+        <span className="section-count">{activity.currentStreak} day streak</span>
+      </div>
+      <Heatmap days={activity.days} />
+      <div className="stats-metrics today-activity-metrics">
+        <div>Daily average: <strong>{activity.dailyAverage}</strong> cards</div>
+        <div>Days learned: <strong>{activity.daysLearned}%</strong></div>
+        <div>Longest streak: <strong>{activity.longestStreak} days</strong></div>
+      </div>
+    </section>
+  )
 
   async function handleRefreshLC() {
     setRefreshing(true)
@@ -341,6 +363,7 @@ export default function Today() {
             You completed {totalDone} item{totalDone !== 1 ? 's' : ''}. Come back tomorrow for your next session.
           </div>
         </div>
+        {activityPanel}
       </div>
     )
   }
@@ -372,6 +395,7 @@ export default function Today() {
             Click "Fetch LeetCode Problems" to download the problem list and generate today's picks.
           </div>
         </div>
+        {activityPanel}
       </div>
     )
   }
@@ -390,6 +414,8 @@ export default function Today() {
           </div>
         </div>
       </div>
+
+      {activityPanel}
 
       {/* Progress bar */}
       {totalItems > 0 && (

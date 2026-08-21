@@ -10,6 +10,7 @@ import type {
   ReviewLog,
   LeetCodeProblem,
   DailyPick,
+  ActivityStats,
   SettingKey,
 } from '../../shared/types'
 
@@ -120,16 +121,26 @@ export function getDueReviews(
   db: Database.Database,
   today: string,
   cap: number
-): (Problem & FsrsState & { retrievability: number })[] {
+): (Problem & FsrsState & { retrievability: number })[]
+{
   // Join problems + fsrs_state for cards due today or earlier
   // Sort by retrievability ascending (most likely forgotten first)
+  // NOTE: Both tables have a 'difficulty' column:
+  //   problems.difficulty  = 'Easy' | 'Medium' | 'Hard'
+  //   fsrs_state.difficulty = FSRS float (e.g. 5.3)
+  // We must alias fsrs_state.difficulty so it doesn't overwrite the string.
   return db
     .prepare(
-      `SELECT p.*, fs.*,
-        COALESCE(
-          EXP(-0.693 * (julianday('now') - julianday(fs.last_review_at)) / NULLIF(fs.stability, 0)),
-          0
-        ) AS retrievability
+      `SELECT
+         p.id, p.title, p.url, p.source, p.pattern_tags, p.recognition_cue,
+         p.difficulty, p.created_at, p.is_leech,
+         fs.problem_id, fs.stability,
+         fs.difficulty AS fsrs_difficulty,
+         fs.reps, fs.lapses, fs.state, fs.due_at, fs.last_review_at,
+         COALESCE(
+           EXP(-0.693 * (julianday('now') - julianday(fs.last_review_at)) / NULLIF(fs.stability, 0)),
+           0
+         ) AS retrievability
        FROM problems p
        JOIN fsrs_state fs ON fs.problem_id = p.id
        WHERE fs.due_at <= ? AND fs.reps > 0
@@ -156,6 +167,51 @@ export function getAgainCountForProblem(db: Database.Database, problem_id: numbe
     .prepare('SELECT COUNT(*) as cnt FROM review_log WHERE problem_id = ? AND grade = 1')
     .get(problem_id) as { cnt: number }
   return row.cnt
+}
+
+export function getActivityStats(db: Database.Database): ActivityStats {
+  const rows = db.prepare(`
+    SELECT date(reviewed_at) AS date, COUNT(*) AS count
+    FROM review_log
+    GROUP BY date(reviewed_at)
+    ORDER BY date(reviewed_at)
+  `).all() as { date: string; count: number }[]
+
+  const countByDate = new Map(rows.map(row => [row.date, row.count]))
+  const days: { date: string; count: number }[] = []
+  const cursor = new Date()
+  cursor.setHours(0, 0, 0, 0)
+  const firstDate = rows[0]?.date
+    ? new Date(`${rows[0].date}T00:00:00`)
+    : new Date(cursor)
+  if (!firstDate.getTime()) firstDate.setDate(cursor.getDate() - 364)
+
+  for (const date = new Date(firstDate); date <= cursor; date.setDate(date.getDate() + 1)) {
+    const iso = date.toISOString().slice(0, 10)
+    days.push({ date: iso, count: countByDate.get(iso) ?? 0 })
+  }
+
+  const learnedDays = days.filter(day => day.count > 0)
+  let longestStreak = 0
+  let runningStreak = 0
+  for (const day of days) {
+    runningStreak = day.count > 0 ? runningStreak + 1 : 0
+    longestStreak = Math.max(longestStreak, runningStreak)
+  }
+
+  let currentStreak = 0
+  for (let index = days.length - 1; index >= 0 && days[index].count > 0; index -= 1) {
+    currentStreak += 1
+  }
+
+  const totalCards = days.reduce((sum, day) => sum + day.count, 0)
+  return {
+    days,
+    dailyAverage: learnedDays.length ? Math.round((totalCards / learnedDays.length) * 10) / 10 : 0,
+    daysLearned: Math.round((learnedDays.length / days.length) * 100),
+    longestStreak,
+    currentStreak,
+  }
 }
 
 // ── LeetCode cache ────────────────────────────────────────────────────────────
@@ -225,10 +281,18 @@ export function getTodayPicks(db: Database.Database, today: string): DailyPick[]
     .all(today) as DailyPick[]
 }
 
-export function insertDailyPick(db: Database.Database, slug: string, today: string): number {
+// Accept the full LeetCodeProblem (or the minimal display fields) and store them
+// alongside the slug so later reads don't need to join to leetcode_problems
+export function insertDailyPick(
+  db: Database.Database,
+  p: { slug: string; title: string | null; url: string | null; difficulty: string | null; tags: string | null },
+  today: string
+): number {
   const result = db
-    .prepare('INSERT INTO daily_picks (slug, surfaced_at, status) VALUES (?, ?, ?)')
-    .run(slug, today, 'pending') as Database.RunResult
+    .prepare(
+      'INSERT INTO daily_picks (slug, surfaced_at, status, title, url, difficulty, tags) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    )
+    .run(p.slug, today, 'pending', p.title, p.url, p.difficulty, p.tags) as Database.RunResult
   return result.lastInsertRowid as number
 }
 

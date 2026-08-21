@@ -36,6 +36,19 @@ export interface ReviewLog {
   retrievability_at_review: number
 }
 
+export interface ActivityDay {
+  date: string
+  count: number
+}
+
+export interface ActivityStats {
+  days: ActivityDay[]
+  dailyAverage: number
+  daysLearned: number
+  longestStreak: number
+  currentStreak: number
+}
+
 export interface LeetCodeProblem {
   slug: string
   title: string
@@ -55,6 +68,11 @@ export interface DailyPick {
   slug: string
   surfaced_at: string   // ISO date string (YYYY-MM-DD)
   status: 'pending' | 'solved' | 'struggled' | 'skipped'
+  // Display fields copied from LeetCode cache at insert time so rows remain usable
+  title: string | null
+  url: string | null
+  difficulty: 'Easy' | 'Medium' | 'Hard' | null
+  tags: string | null // JSON array string
 }
 
 // ---- Settings keys & defaults ----
@@ -130,6 +148,7 @@ export type IpcChannel =
   // Reviews
   | 'reviews:grade'
   | 'reviews:logNewPick'
+  | 'reviews:activity'
   // Today
   | 'today:getQueue'
   // LeetCode cache

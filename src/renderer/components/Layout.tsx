@@ -37,6 +37,20 @@ const SettingsIcon = () => (
   </svg>
 )
 
+const StatsIcon = () => (
+  <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="3" y="3" width="4" height="4" rx="1" />
+    <rect x="10" y="3" width="4" height="4" rx="1" />
+    <rect x="17" y="3" width="4" height="4" rx="1" />
+    <rect x="3" y="10" width="4" height="4" rx="1" />
+    <rect x="10" y="10" width="4" height="4" rx="1" />
+    <rect x="17" y="10" width="4" height="4" rx="1" />
+    <rect x="3" y="17" width="4" height="4" rx="1" />
+    <rect x="10" y="17" width="4" height="4" rx="1" />
+    <rect x="17" y="17" width="4" height="4" rx="1" />
+  </svg>
+)
+
 interface LayoutProps {
   children: ReactNode
 }
@@ -62,6 +76,10 @@ export default function Layout({ children }: LayoutProps) {
             <NavLink to="/browse" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
               <BrowseIcon />
               Browse
+            </NavLink>
+            <NavLink to="/stats" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <StatsIcon />
+              Activity
             </NavLink>
             <NavLink to="/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
               <SettingsIcon />

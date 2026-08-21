@@ -27,6 +27,7 @@ export function initDatabase(): void {
 }
 
 import { sql as initialMigration } from './migrations/001_initial'
+import { sql as dailyPicksMigration } from './migrations/002_daily_picks_fields'
 
 function runMigrations(db: Database.Database): void {
   // Create migrations tracking table
@@ -45,6 +46,7 @@ function runMigrations(db: Database.Database): void {
 
   const migrations = [
     { filename: '001_initial.sql', sql: initialMigration },
+    { filename: '002_daily_picks_fields.sql', sql: dailyPicksMigration },
   ]
 
   for (const migration of migrations) {

@@ -13,6 +13,7 @@ import type {
   SettingKey,
   SettingSetPayload,
   TodayItem,
+  ActivityStats,
 } from '@shared/types'
 
 declare global {
@@ -24,6 +25,10 @@ declare global {
 }
 
 async function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResponse<T>> {
+  if (!window.api) {
+    console.warn(`[ipc] window.api not found — running outside Electron. Channel: ${channel}`)
+    return { success: false, error: 'Not running in Electron — window.api is unavailable.' } as IpcResponse<T>
+  }
   return window.api.invoke(channel, ...args) as Promise<IpcResponse<T>>
 }
 
@@ -50,6 +55,8 @@ export const gradeReview = (payload: GradeReviewPayload) =>
 
 export const logNewPickResult = (payload: LogNewPickResultPayload) =>
   invoke<void>('reviews:logNewPick', payload)
+
+export const getActivityStats = () => invoke<ActivityStats>('reviews:activity')
 
 // ── LeetCode ──────────────────────────────────────────────────────────────────
 export const searchLeetCode = (query: string) =>

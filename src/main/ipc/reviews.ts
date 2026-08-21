@@ -9,6 +9,7 @@ import {
   setLeechFlag,
   updateDailyPickStatus,
   getLeetCodeBySlug,
+  getActivityStats,
 } from '../db/schema'
 import { getSetting } from '../db/schema'
 import { scheduleReview } from '../fsrs/wrapper'
@@ -21,6 +22,17 @@ import type {
 const LEECH_THRESHOLD = 4
 
 export function registerReviewsHandlers(ipcMain: IpcMain): void {
+  ipcMain.handle(
+    'reviews:activity',
+    async (): Promise<IpcResponse<ReturnType<typeof getActivityStats>>> => {
+      try {
+        return { success: true, data: getActivityStats(getDb()) }
+      } catch (e) {
+        return { success: false, error: String(e) }
+      }
+    }
+  )
+
   // Grade an existing review card (due review flow)
   ipcMain.handle(
     'reviews:grade',

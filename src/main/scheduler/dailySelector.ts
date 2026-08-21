@@ -59,24 +59,19 @@ export function selectDailyProblems(db: Database.Database): TodayNewPick[] {
   // Check if we already have pending picks for today
   const existingPicks = getTodayPicks(db, today).filter(p => p.status === 'pending')
   if (existingPicks.length > 0) {
-    // Return them hydrated from LC cache
+    // Hydrate directly from the daily_picks row — no dependency on leetcode_problems
     const result: TodayNewPick[] = []
     for (const pick of existingPicks) {
-      const lc = db
-        .prepare('SELECT * FROM leetcode_problems WHERE slug = ?')
-        .get(pick.slug) as LeetCodeProblem | undefined
-      if (lc) {
-        const tags = tryParseJson<string[]>(lc.tags) ?? []
-        result.push({
-          type: 'new',
-          pick_id: pick.id,
-          slug: lc.slug,
-          title: lc.title,
-          url: lc.url,
-          difficulty: lc.difficulty,
-          primary_tag: tags[0] ?? null,
-        })
-      }
+      const tags = tryParseJson<string[]>(pick.tags ?? '[]') ?? []
+      result.push({
+        type: 'new',
+        pick_id: pick.id,
+        slug: pick.slug,
+        title: pick.title ?? '(untitled)',
+        url: pick.url ?? '',
+        difficulty: (pick.difficulty as string) ?? null,
+        primary_tag: tags[0] ?? null,
+      })
     }
     if (result.length > 0) return result
   }
@@ -153,8 +148,12 @@ export function selectDailyProblems(db: Database.Database): TodayNewPick[] {
 
     selectedSlugsThisSession.add(pick.slug)
 
-    // Insert into daily_picks
-    const pickId = insertDailyPick(db, pick.slug, today)
+    // Insert into daily_picks (store display fields alongside slug)
+    const pickId = insertDailyPick(
+      db,
+      { slug: pick.slug, title: pick.title, url: pick.url, difficulty: pick.difficulty, tags: pick.tags },
+      today
+    )
 
     const tags = tryParseJson<string[]>(pick.tags) ?? []
     selected.push({
@@ -177,4 +176,24 @@ function tryParseJson<T>(s: string): T | null {
   } catch {
     return null
   }
+}
+
+// Utility: verify that calling selectDailyProblems twice in the same day returns
+// the same pick_ids and does not insert extra rows (useful for a short test)
+export function verifySelectDailyProblemsIdempotent(db: Database.Database): boolean {
+  const beforeRow = db.prepare('SELECT COUNT(*) as cnt FROM daily_picks').get() as { cnt: number }
+  const beforeTotal = beforeRow.cnt
+  const first = selectDailyProblems(db).map(p => p.pick_id).sort((a, b) => a - b)
+  const afterRow = db.prepare('SELECT COUNT(*) as cnt FROM daily_picks').get() as { cnt: number }
+  const afterTotal = afterRow.cnt
+  const second = selectDailyProblems(db).map(p => p.pick_id).sort((a, b) => a - b)
+  const finalRow = db.prepare('SELECT COUNT(*) as cnt FROM daily_picks').get() as { cnt: number }
+  const finalTotal = finalRow.cnt
+
+  const idsSame = JSON.stringify(first) === JSON.stringify(second)
+  // No unexpected row insert: finalTotal should equal afterTotal (no inserts during the second call)
+  const noUnexpectedInserts = finalTotal === afterTotal
+  // Also ensure that some picks exist (sanity)
+  const hadPicks = first.length > 0
+  return idsSame && noUnexpectedInserts && hadPicks
 }

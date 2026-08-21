@@ -10,6 +10,11 @@ import { registerSettingsHandlers } from './ipc/settings'
 // ── Dev / prod helper ─────────────────────────────────────────────────────────
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
+// Disable GPU hardware acceleration — prevents GPU process crash (error_code=1002)
+// on Linux systems without compatible GPU drivers. Falls back to software rendering.
+app.commandLine.appendSwitch('disable-gpu')
+app.commandLine.appendSwitch('no-sandbox')
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1200,
@@ -29,7 +34,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false,
     },
-    show: false,
+    show: true,
   })
 
   // Open external links in the system browser, not Electron
@@ -53,9 +58,9 @@ function createWindow() {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
-  win.once('ready-to-show', () => {
-    win.show()
-  })
+  // Show window immediately — don't wait for ready-to-show so a renderer
+  // error doesn't leave the window permanently invisible.
+  win.once('ready-to-show', () => win.focus())
 
   return win
 }
